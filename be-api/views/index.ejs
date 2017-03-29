@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<script
+  src="https://code.jquery.com/jquery-3.1.1.min.js"
+
+  crossorigin="anonymous"></script>
+
+    <!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+  <head>
+    <title>Twitter - MongoDB - Google Maps :: Umut Çetin</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: 100%;
+        }
+    </style>
+  </head>
+  <body>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfbgzBRxEsv71Q26lkpTciqHUVDFV7sy0&libraries=drawing,places&callback=initMap"
+            async defer></script>
+    <script>
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: {lat: 12.969555, lng: 12.0826403},
+          zoom: 3
+        });
+        markers = [];
+        infowindows = [];
+        overlays = [];
+
+        drawingManager = new google.maps.drawing.DrawingManager({
+            drawingMode: google.maps.drawing.OverlayType.RECTANGLE,
+            drawingControl: true,
+            drawingControlOptions: {
+                position: google.maps.ControlPosition.RIGHT_CENTER,
+                drawingModes: [
+                  google.maps.drawing.OverlayType.RECTANGLE
+                ]
+            },
+            rectangleOptions: {
+                fillColor: '#ffbe00',
+                fillOpacity: 0.2,
+                strokeWeight: 1,
+                clickable: false,
+                editable: false,
+                zIndex: 1
+            }
+        });
+
+        drawingManager.setMap(map);
+
+
+        google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+            if (event.type == google.maps.drawing.OverlayType.RECTANGLE) {
+
+                var rect = event.overlay.getBounds();
+                overlays.push(event.overlay);
+                console.log(rect.f);
+                console.log(rect.b);
+
+                var keyword = $("#textbox").val();
+                if (keyword === "")
+                  requestName = "geo/";
+                else   requestName = "text/";
+
+                while(markers[0])
+                {
+                  markers.pop().setMap(null);
+                }
+
+                while(overlays[0])
+                {
+                  overlays.pop().setMap(null);
+                }
+
+                infowindows=[];
+
+                var prm1 = rect.getSouthWest().lng();
+                var prm2 = rect.getSouthWest().lat();
+                var prm3 = rect.getNorthEast().lng();
+                var prm4 = rect.getNorthEast().lat();
+                var requestUrl = "http://localhost:3000/tweets/"+requestName+ keyword
+                + "/bottomLeftLon/" + prm1.toString()
+                + "/bottomLeftLat/" + prm2.toString()
+                + "/upperRightLon/" + prm3.toString()
+                + "/upperRightLat/" + prm4.toString();
+
+                $.ajax({
+                  url: requestUrl,
+                  type: 'GET',
+                  success: function (data) {
+                    console.log('success', data);
+                    var image = 'https://www.cambridgema.gov/images/Twitter-icon.png';
+                    var image2 = 'https://az620379.vo.msecnd.net/images/twitter_icon_16x16.png';
+                    var image3 = 'http://shopcitywebsites.com/assets/images/iconTw-round.png';
+                    for (var i = 0; i < data.length; i++) {
+                        var myLatLng = {lat: data[i].coordinates.coordinates[1], lng: data[i].coordinates.coordinates[0]};
+                        var marker = new google.maps.Marker({
+                            map: map,
+                            position: myLatLng,
+                            icon: data[i].user.profile_image_url,
+                            title: data[i].text,
+                            animation: google.maps.Animation.DROP
+                        });
+                        marker.index = i;
+                        markers.push(marker);
+
+                        var contentText = "<div><h4>" + data[i].user.name + "</h4>";
+                  				contentText += "<p>Tweet time: " + new Date(data[i].created_at).toString() + "</p>";
+                  				contentText += "<p>" + data[i].text + "</p>";
+                  				contentText += "</div>";
+
+                        var ctext = '<div class="infowindow-content"><blockquote class="twitter-tweet" lang="en">'+
+                        '<a href="https://twitter.com/'+ data[i].user.screen_name +
+                        '/status/'+data[i].id_str+'"></a></blockquote></div>';
+
+                        //TODO:should not create multiple infowindows.
+                        //Try to find a way to have only one and set content accordingly. Regarding the size,
+                        //the width should not be a problem. You could set a min-height on your twitter-tweet class.
+                        //But that would not be dynamic.
+
+                        var InfoWindow = new google.maps.InfoWindow({
+              					       content: ctext
+              		      });
+
+                        google.maps.event.addListener(InfoWindow, 'domready', function () {
+                            ! function (d, s, id) {
+                                var js, fjs = d.getElementsByTagName(s)[0];
+                                if (!d.getElementById(id)) {
+                                    js = d.createElement(s);
+                                    //js.id = id;
+                                    js.src = "//platform.twitter.com/widgets.js";
+                                    fjs.parentNode.insertBefore(js, fjs);
+                                }
+                            }(document, "script", "twitter-wjs");
+                        });
+
+                        infowindows.push(InfoWindow);
+
+                        google.maps.event.addListener(markers[i], 'click', function() {
+                              infowindows[this.index].open(map,markers[this.index]);
+                    			        map.panTo(markers[this.index].getPosition());
+
+                    		});
+
+                    		if(i == 0) {
+                    					map.panTo(markers[i].getPosition());
+                    		}
+
+
+
+                        }
+
+                        drawingManager.setDrawingMode(null);
+
+                  },
+                  error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.log('error', errorThrown);
+                  }
+                });
+
+                // $.ajax({
+                //   url: 'http://localhost:28017/twitter2/tweets',
+                //   type: 'GET',
+                //   dataType: 'jsonp',
+                //   jsonp: 'jsonp', // mongod is expecting the parameter name to be called "jsonp"
+                //   //  "_id" : "58c647bc26f00b108ceff222",
+                //   success: function (data) {
+                //     console.log('success', data);
+                //   },
+                //   error: function (XMLHttpRequest, textStatus, errorThrown) {
+                //     console.log('error', errorThrown);
+                //   }
+                // });
+
+
+                // var service = new google.maps.places.PlacesService(map);
+                // var request = {
+                //     bounds: event.overlay.bounds,
+                //     type: ['store']
+                // };
+                // service.nearbySearch(request, callback);
+                //
+                // function callback(results, status) {
+                //
+                //     if (status === google.maps.places.PlacesServiceStatus.OK) {
+                //         for (var i = 0; i < results.length; i++) {
+                //
+                //             var marker = new google.maps.Marker({
+                //                 map: map,
+                //                 position: results[i].geometry.location
+                //             });
+                //         }
+                //     }
+                // }
+            }
+        });
+
+
+        // google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+        //     if (event.type == google.maps.drawing.OverlayType.CIRCLE) {
+        //
+        //         var r = event.overlay.radius
+        //         var lat = event.overlay.center.lat()
+        //         var lon = event.overlay.center.lng()
+        //
+        //         var service = new google.maps.places.PlacesService(map);
+        //         service.nearbySearch({
+        //             location: new google.maps.LatLng(lat, lon),
+        //             radius: r,
+        //             type: ['store']
+        //         }, callback);
+        //
+        //         function callback(results, status) {
+        //             if (status === google.maps.places.PlacesServiceStatus.OK) {
+        //                 for (var i = 0; i < results.length; i++) {
+        //                     new google.maps.Marker({
+        //                         map: map,
+        //                         position: results[i].geometry.location
+        //                     });
+        //
+        //                 }
+        //             }
+        //         }
+        //     }
+        // });
+    }
+
+    </script>
+    <div class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">Twitter-MongoDB-Google Maps</a>
+        </div>
+        <div class="navbar-collapse collapse" id="searchbar">
+
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="http://umutcet.in" target="_blank">Umut Çetin</a></li>
+
+          </ul>
+
+
+
+
+         <form class="navbar-form">
+            <div class="form-group" style="display:inline;">
+              <div class="input-group" style="display:table;">
+                <span class="input-group-addon" style="width:1%;"></span>
+
+                <input id="textbox" class="form-control" placeholder="Enter Keyword" autocomplete="off" autofocus="autofocus" type="text">
+                <div class="input-group-btn">
+                    <button class="btn btn-primary" id="searchButton" >
+                    <span class="glyphicon glyphicon-search"></span>
+                    </button>
+                    <button class="btn btn-primary" id="resetButton" >
+                    <span class="glyphicon glyphicon-remove-circle"></span>
+                    </button>
+               </div>
+              </div>
+            </div>
+          </form>
+
+        </div><!--/.nav-collapse -->
+      </div>
+    </div>
+
+
+    <div id="map"></div>
+    <script>
+    // $(".textbox").on('keyup', function (e) {
+    //     if (e.keyCode == 13) {
+    //         alert("enteer");// Do something
+    //     }
+    // });
+    //get a reference to the element
+        var myBtn = document.getElementById('searchButton');
+
+        //add event listener
+        myBtn.addEventListener('click', function(event) {
+          var keyword = $("#textbox").val();
+          //alert(keyword);// Do something
+
+          while(markers[0])
+          {
+            markers.pop().setMap(null);
+          }
+
+          while(overlays[0])
+          {
+            overlays.pop().setMap(null);
+          }
+
+          infowindows=[];
+
+          $.ajax({
+            url: 'http://localhost:3000/tweets/text/'+keyword,
+            type: 'GET',
+            success: function (data) {
+              console.log('success', data);
+              for (var i = 0; i < data.length; i++) {
+                  var image3 = 'http://shopcitywebsites.com/assets/images/iconTw-round.png';
+                  var myLatLng = {lat: data[i].coordinates.coordinates[1], lng: data[i].coordinates.coordinates[0]};
+                  var marker = new google.maps.Marker({
+                      map: map,
+                      position: myLatLng,
+                      title: data[i].text,
+                      icon: data[i].user.profile_image_url,
+                      animation: google.maps.Animation.DROP
+                  });
+                  marker.index = i;
+                  markers.push(marker);
+
+                  var contentText = "<div><h4>" + data[i].user.name + "</h4>";
+                    contentText += "<p>Tweet time: " + new Date(data[i].created_at).toString() + "</p>";
+                    contentText += "<p>" + data[i].text + "</p>";
+                    contentText += "</div>";
+
+                    var ctext = '<div class="infowindow-content"><blockquote class="twitter-tweet" lang="en">'+
+                    '<a href="https://twitter.com/'+ data[i].user.screen_name +
+                    '/status/'+data[i].id_str+'"></a></blockquote></div>';
+
+                    //TODO:should not create multiple infowindows.
+                    //Try to find a way to have only one and set content accordingly. Regarding the size,
+                    //the width should not be a problem. You could set a min-height on your twitter-tweet class.
+                    //But that would not be dynamic.
+
+                    var InfoWindow = new google.maps.InfoWindow({
+                           content: ctext
+                    });
+
+                    google.maps.event.addListener(InfoWindow, 'domready', function () {
+                        ! function (d, s, id) {
+                            var js, fjs = d.getElementsByTagName(s)[0];
+                            if (!d.getElementById(id)) {
+                                js = d.createElement(s);
+                                //js.id = id;
+                                js.src = "//platform.twitter.com/widgets.js";
+                                fjs.parentNode.insertBefore(js, fjs);
+                            }
+                        }(document, "script", "twitter-wjs");
+                    });
+
+                    infowindows.push(InfoWindow);
+
+
+                  // infowindows.push(new google.maps.InfoWindow({
+                  //        content: contentText
+                  // }));
+
+                  google.maps.event.addListener(markers[i], 'click', function() {
+                        infowindows[this.index].open(map,markers[this.index]);
+                            map.panTo(markers[this.index].getPosition());
+
+                  });
+
+                  if(i == 0) {
+                        map.panTo(markers[i].getPosition());
+                  }
+              }
+
+            },
+            error: function (XMLHttpRequest, textStatus, errorThrown) {
+              console.log('error', errorThrown);
+            }
+          });
+          drawingManager.setDrawingMode(null);
+          event.preventDefault();
+        });
+
+        var resetButton = document.getElementById('resetButton');
+        //add event listener
+        resetButton.addEventListener('click', function(event) {
+
+
+          drawingManager.setDrawingMode('rectangle');
+
+          while(markers[0])
+          {
+            markers.pop().setMap(null);
+          }
+
+          while(overlays[0])
+          {
+            overlays.pop().setMap(null);
+          }
+
+          infowindows=[];
+          $("#textbox").val("");
+          event.preventDefault();
+        });
+    </script>
+  </body>
+</html>
